@@ -8,7 +8,7 @@ use rayon::prelude::*;
 /// `epsilon = 0.00000001`
 pub fn sgd_adam(
     initial: &[f64],
-    grad_terms: Vec<impl Fn(&[f64]) -> Vec<f64> + Send + Sync>,
+    grad_terms: Vec<Box<dyn Fn(&[f64]) -> Vec<f64> + Send + Sync>>,
     batch: usize,
     finishing_grad_error: f64,
     alpha: f64,

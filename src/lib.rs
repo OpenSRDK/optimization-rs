@@ -1,6 +1,7 @@
 extern crate rand;
 extern crate rayon;
 
+pub mod l_bfgs;
 pub mod prelude;
 pub mod sgd_adam;
 
