@@ -8,7 +8,7 @@ use rayon::prelude::*;
 /// `epsilon = 0.00000001`
 pub fn sgd_adam(
     initial: &[f64],
-    grad: impl Fn(&[f64]) -> Vec<f64>,
+    grad: &dyn Fn(&[f64]) -> Vec<f64>,
     grad_terms: Vec<Box<dyn Fn(&[f64]) -> Vec<f64> + Send + Sync>>,
     batch: usize,
     finishing_grad_error: f64,
@@ -25,7 +25,6 @@ pub fn sgd_adam(
     let mut rng: StdRng = SeedableRng::seed_from_u64(1);
 
     loop {
-        t += 1;
         if grad(&w)
             .iter()
             .fold(0.0 / 0.0, |m: f64, v| v.abs().max(m.abs()))
@@ -59,11 +58,11 @@ pub fn sgd_adam(
 
             let m_hat = m
                 .par_iter()
-                .map(|m_e| m_e / (1.0 - beta1.powi(t)))
+                .map(|m_e| m_e / (1.0 - beta1.powi(t + 1)))
                 .collect::<Vec<_>>();
             let v_hat = v
                 .par_iter()
-                .map(|v_e| v_e / (1.0 - beta1.powi(t)))
+                .map(|v_e| v_e / (1.0 - beta1.powi(t + 1)))
                 .collect::<Vec<_>>();
 
             let m_v = m_hat.into_par_iter().zip(v_hat.into_par_iter());
@@ -72,6 +71,7 @@ pub fn sgd_adam(
                 .zip(m_v)
                 .for_each(|(w_e, (m_e, v_e))| *w_e = *w_e - alpha * m_e / (v_e.sqrt() + epsilon));
         }
+        t += 1;
     }
 
     w
