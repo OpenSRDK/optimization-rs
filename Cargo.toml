@@ -3,6 +3,11 @@ name = "opensrdk-optimization"
 version = "0.1.0"
 authors = ["Kimura Yu <33382781+KimuraYu45z@users.noreply.github.com>"]
 edition = "2018"
+description = "Standard mathematical optimization library for OpenSRDK toolchain."
+repository = "https://github.com/OpenSRDK/optimization-rs"
+license = "Apache-2.0"
+keywords = ["machine-learning"]
+categories = ["mathematics", "science"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
