@@ -6,9 +6,11 @@ use rayon::prelude::*;
 /// https://en.wikipedia.org/wiki/Limited-memory_BFGS
 pub fn l_bfgs(
     initial: &[f64],
+    func: &dyn Fn(&[f64]) -> f64,
     grad: &dyn Fn(&[f64]) -> Vec<f64>,
     finishing_grad_error: f64,
     max_memory: usize,
+    initial_step_width: f64,
 ) -> Vec<f64> {
     let mut x = initial.to_vec();
     let mut x_before = initial.to_vec();
@@ -93,7 +95,7 @@ pub fn l_bfgs(
             *z_e = -*z_e;
         });
 
-        let alpha = line_search(&x, grad);
+        let alpha = line_search(&x, func, grad, &z, initial_step_width);
 
         g_before = g;
 
