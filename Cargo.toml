@@ -1,6 +1,6 @@
 [package]
 name = "opensrdk-optimization"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Kimura Yu <33382781+KimuraYu45z@users.noreply.github.com>"]
 edition = "2018"
 description = "Standard mathematical optimization library for OpenSRDK toolchain."

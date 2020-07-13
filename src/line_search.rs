@@ -2,8 +2,7 @@ use rayon::prelude::*;
 
 pub fn line_search(
     position: &[f64],
-    func: &dyn Fn(&[f64]) -> f64,
-    grad: &dyn Fn(&[f64]) -> Vec<f64>,
+    func_grad: &dyn Fn(&[f64]) -> (f64, Vec<f64>),
     direction: &[f64],
     initial_step_width: f64,
 ) -> f64 {
@@ -20,15 +19,19 @@ pub fn line_search(
             .map(|(x_e, direction_e)| x_e + step_width * direction_e)
             .collect::<Vec<_>>();
 
-        let grad_dot_direction = grad(position)
+        let tmp1 = func_grad(position);
+        let tmp2 = func_grad(&moved_position);
+
+        let grad_dot_direction = tmp1
+            .1
             .par_iter()
             .zip(direction.par_iter())
             .map(|(x_e, direction_e)| x_e * direction_e)
             .sum::<f64>();
 
         // Armijo condition
-        let armijo_left = func(&moved_position);
-        let armijo_right = func(position) + armijo_param * step_width * grad_dot_direction;
+        let armijo_left = tmp2.0;
+        let armijo_right = tmp1.0 + armijo_param * step_width * grad_dot_direction;
 
         if armijo_left <= armijo_right {
             step_width -= initial_step_width / i as f64;
@@ -38,7 +41,8 @@ pub fn line_search(
 
         // Curvature condition
         let curvature_left = curvature_param * grad_dot_direction;
-        let curvature_right = grad(&moved_position)
+        let curvature_right = tmp2
+            .1
             .par_iter()
             .zip(direction.par_iter())
             .map(|(x_e, direction_e)| x_e * direction_e)
