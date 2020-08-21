@@ -3,13 +3,8 @@ extern crate rayon;
 
 pub mod l_bfgs;
 pub mod line_search;
-pub mod prelude;
 pub mod sgd_adam;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+pub use crate::l_bfgs::*;
+pub use crate::line_search::*;
+pub use crate::sgd_adam::*;
