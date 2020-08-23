@@ -12,8 +12,8 @@ pub fn l_bfgs(
     initial_step_width: f64,
 ) -> Result<Vec<f64>, String> {
     let mut x = initial.to_vec();
-    let mut x_before = initial.to_vec();
-    let mut g_before = func_grad(&x)?.1;
+    let mut x_prev = initial.to_vec();
+    let mut g_prev = func_grad(&x)?.1;
     let mut k = 0;
 
     let mut s = vec![vec![0.0; 0]; 0];
@@ -22,32 +22,35 @@ pub fn l_bfgs(
 
     loop {
         let mut g = func_grad(&x)?.1;
-        if g.iter().fold(0.0 / 0.0, |m: f64, v| v.abs().max(m.abs())) < grad_error_goal {
+        if g.iter()
+            .fold(0.0 / 0.0, |max: f64, gi| gi.abs().max(max.abs()))
+            < grad_error_goal
+        {
             break;
         }
 
         s.push(
             x.par_iter()
-                .zip(x_before.par_iter())
-                .map(|(x_e, x_before_e)| x_e - x_before_e)
+                .zip(x_prev.par_iter())
+                .map(|(xi, xi_prev)| xi - xi_prev)
                 .collect(),
         );
 
         y.push(
             g.par_iter()
-                .zip(g_before.par_iter())
-                .map(|(g_e, g_before_e)| g_e - g_before_e)
+                .zip(g_prev.par_iter())
+                .map(|(gi, gi_prev)| gi - gi_prev)
                 .collect(),
         );
 
-        let s_k = &s[k];
-        let y_k = &y[k];
+        let sk = &s[k];
+        let yk = &y[k];
 
         rho.push(
-            1.0 / y_k
+            1.0 / yk
                 .par_iter()
-                .zip(s_k.par_iter())
-                .map(|(y_e, s_e)| y_e * s_e)
+                .zip(sk.par_iter())
+                .map(|(ykj, skj)| ykj * skj)
                 .sum::<f64>(),
         );
 
@@ -58,52 +61,52 @@ pub fn l_bfgs(
                 * s[i]
                     .par_iter()
                     .zip(g.par_iter())
-                    .map(|(s_e, g_e)| s_e * g_e)
+                    .map(|(sij, gj)| sij * gj)
                     .sum::<f64>();
-            let alpha_i = alpha[i];
-            let y_i = &y[i];
+            let alphai = alpha[i];
+            let yi = &y[i];
             g.par_iter_mut()
-                .zip(y_i.par_iter())
-                .for_each(|(g_e, y_e)| *g_e = *g_e - alpha_i * y_e);
+                .zip(yi.par_iter())
+                .for_each(|(gj, yij)| *gj = *gj - alphai * yij);
         }
 
-        let gamma = s_k
+        let gamma = sk
             .par_iter()
-            .zip(y_k.par_iter())
-            .map(|(s_e, y_e)| s_e * y_e)
+            .zip(yk.par_iter())
+            .map(|(skj, ykj)| skj * ykj)
             .sum::<f64>()
-            / y_k.par_iter().map(|y_e| *y_e * *y_e).sum::<f64>();
+            / yk.par_iter().map(|ykj| *ykj * *ykj).sum::<f64>();
 
-        let mut z = g.par_iter().map(|q_e| gamma * q_e).collect::<Vec<_>>();
+        let mut z = g.par_iter().map(|gi| gamma * gi).collect::<Vec<_>>();
 
         for i in (k - max_memory.min(k))..k {
-            let s_i = &s[i];
-            let alpha_i = alpha[i];
-            let beta_i = rho[i]
+            let si = &s[i];
+            let alphai = alpha[i];
+            let betai = rho[i]
                 * y[i]
                     .par_iter()
                     .zip(z.par_iter())
-                    .map(|(y_e, z_e)| y_e * z_e)
+                    .map(|(yij, zj)| yij * zj)
                     .sum::<f64>();
             z.par_iter_mut()
-                .zip(s_i.par_iter())
-                .for_each(|(z_e, s_e)| *z_e = *z_e + s_e * (alpha_i - beta_i))
+                .zip(si.par_iter())
+                .for_each(|(zj, sij)| *zj = *zj + sij * (alphai - betai))
         }
 
-        z.par_iter_mut().for_each(|z_e| {
-            *z_e = -*z_e;
+        z.par_iter_mut().for_each(|zi| {
+            *zi = -*zi;
         });
 
         let alpha = line_search(&x, func_grad, &z, initial_step_width)?;
 
-        g_before = g;
+        g_prev = g;
 
         x.par_iter_mut()
-            .zip(x_before.par_iter_mut())
+            .zip(x_prev.par_iter_mut())
             .zip(z.par_iter())
-            .for_each(|((x_e, x_before_e), z_e)| {
-                *x_before_e = *x_e;
-                *x_e = *x_e + alpha * z_e;
+            .for_each(|((xi, xi_prev), zi)| {
+                *xi_prev = *xi;
+                *xi = *xi + alpha * zi;
             });
 
         k += 1;
