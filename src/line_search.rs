@@ -2,10 +2,10 @@ use rayon::prelude::*;
 
 pub fn line_search(
     position: &[f64],
-    func_grad: &dyn Fn(&[f64]) -> (f64, Vec<f64>),
+    func_grad: &dyn Fn(&[f64]) -> Result<(f64, Vec<f64>), String>,
     direction: &[f64],
     initial_step_width: f64,
-) -> f64 {
+) -> Result<f64, String> {
     let mut step_width = initial_step_width;
     let armijo_param = 0.4;
     let curvature_param = 0.6;
@@ -19,8 +19,8 @@ pub fn line_search(
             .map(|(x_e, direction_e)| x_e + step_width * direction_e)
             .collect::<Vec<_>>();
 
-        let tmp1 = func_grad(position);
-        let tmp2 = func_grad(&moved_position);
+        let tmp1 = func_grad(position)?;
+        let tmp2 = func_grad(&moved_position)?;
 
         let grad_dot_direction = tmp1
             .1
@@ -57,5 +57,5 @@ pub fn line_search(
         break;
     }
 
-    step_width
+    Ok(step_width)
 }
