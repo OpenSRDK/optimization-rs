@@ -5,14 +5,14 @@ use rayon::prelude::*;
 /// for minimization
 /// https://en.wikipedia.org/wiki/Limited-memory_BFGS
 pub fn l_bfgs(
-    initial: &[f64],
     func_grad: &dyn Fn(&[f64]) -> Result<(f64, Vec<f64>), String>,
+    x: &[f64],
     grad_error_goal: f64,
     max_memory: usize,
-    initial_step_width: f64,
+    initial_step_size: f64,
 ) -> Result<Vec<f64>, String> {
-    let mut x = initial.to_vec();
-    let mut x_prev = initial.to_vec();
+    let mut x = x.to_vec();
+    let mut x_prev = x.to_vec();
     let mut g_prev = func_grad(&x)?.1;
     let mut k = 0;
 
@@ -97,7 +97,7 @@ pub fn l_bfgs(
             *zi = -*zi;
         });
 
-        let alpha = line_search(&x, func_grad, &z, initial_step_width)?;
+        let alpha = line_search(func_grad, &x, &z, initial_step_size)?;
 
         g_prev = g;
 

@@ -7,25 +7,25 @@ use rayon::prelude::*;
 /// `beta2 = 0.999`
 /// `epsilon = 0.00000001`
 pub fn sgd_adam(
-    initial: &[f64],
-    grad: &dyn Fn(&[f64]) -> Result<Vec<f64>, String>,
-    grad_terms: Vec<Box<dyn Fn(&[f64]) -> Result<Vec<f64>, String> + Send + Sync>>,
-    batch: usize,
+    grad: &(dyn Fn(&[usize], &[f64]) -> Result<Vec<f64>, String> + Send + Sync),
+    x: &[f64],
     grad_error_goal: f64,
+    batch: usize,
+    total: usize,
     alpha: f64,
     beta1: f64,
     beta2: f64,
     epsilon: f64,
 ) -> Result<Vec<f64>, String> {
-    let mut grad_terms_mut = grad_terms;
-    let mut w = initial.to_vec();
+    let mut batch_index = (0..total).into_iter().collect::<Vec<_>>();
+    let mut w = x.to_vec();
     let mut m = vec![0.0; w.len()];
     let mut v = vec![0.0; w.len()];
     let mut t = 0;
     let mut rng: StdRng = SeedableRng::seed_from_u64(1);
 
     loop {
-        if grad(&w)?
+        if grad(&(0..total).into_iter().collect::<Vec<_>>(), &w)?
             .iter()
             .fold(0.0 / 0.0, |max: f64, wi| wi.abs().max(max.abs()))
             < grad_error_goal
@@ -33,28 +33,16 @@ pub fn sgd_adam(
             break;
         }
 
-        grad_terms_mut.shuffle(&mut rng);
+        batch_index.shuffle(&mut rng);
 
-        for grad_terms_batch in grad_terms_mut.chunks(batch) {
-            let batch_sum_grad: Vec<f64> = grad_terms_batch
-                .par_iter()
-                .map(|grad_term| grad_term(&w))
-                .try_reduce(
-                    || vec![0.0; w.len()],
-                    |mut sum, g| {
-                        let g = g;
-                        sum.par_iter_mut()
-                            .zip(g.into_par_iter())
-                            .for_each(|(sumi, gi)| *sumi += gi);
-                        Ok(sum)
-                    },
-                )?;
+        for minibatch in batch_index.chunks(batch) {
+            let minibatch_grad: Vec<f64> = grad(&minibatch, &w)?;
 
             m.par_iter_mut()
-                .zip(batch_sum_grad.par_iter())
+                .zip(minibatch_grad.par_iter())
                 .for_each(|(mi, gi)| *mi = beta1 * *mi + (1.0 - beta1) * gi);
             v.par_iter_mut()
-                .zip(batch_sum_grad.par_iter())
+                .zip(minibatch_grad.par_iter())
                 .for_each(|(vi, gi)| *vi = beta2 * *vi + (1.0 - beta1) * gi.powi(2));
 
             let m_hat = m
