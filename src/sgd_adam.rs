@@ -1,5 +1,6 @@
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use rayon::prelude::*;
+use std::error::Error;
 
 /// # Stochastic Gradient Descent Adam
 /// `alpha = 0.001`
@@ -7,7 +8,7 @@ use rayon::prelude::*;
 /// `beta2 = 0.999`
 /// `epsilon = 0.00000001`
 pub fn sgd_adam(
-    grad: &(dyn Fn(&[usize], &[f64]) -> Result<Vec<f64>, String> + Send + Sync),
+    grad: &(dyn Fn(&[usize], &[f64]) -> Result<Vec<f64>, Box<dyn Error>> + Send + Sync),
     x: &[f64],
     grad_error_goal: f64,
     batch: usize,
@@ -16,7 +17,7 @@ pub fn sgd_adam(
     beta1: f64,
     beta2: f64,
     epsilon: f64,
-) -> Result<Vec<f64>, String> {
+) -> Result<Vec<f64>, Box<dyn Error>> {
     let mut batch_index = (0..total).into_iter().collect::<Vec<_>>();
     let mut w = x.to_vec();
     let mut m = vec![0.0; w.len()];

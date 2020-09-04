@@ -1,16 +1,17 @@
 use crate::line_search::line_search;
 use rayon::prelude::*;
+use std::error::Error;
 
 /// # Limited memory BFGS
 /// for minimization
 /// https://en.wikipedia.org/wiki/Limited-memory_BFGS
 pub fn l_bfgs(
-    func_grad: &dyn Fn(&[f64]) -> Result<(f64, Vec<f64>), String>,
+    func_grad: &dyn Fn(&[f64]) -> Result<(f64, Vec<f64>), Box<dyn Error>>,
     x: &[f64],
     grad_error_goal: f64,
     max_memory: usize,
     initial_step_size: f64,
-) -> Result<Vec<f64>, String> {
+) -> Result<Vec<f64>, Box<dyn Error>> {
     let mut x = x.to_vec();
     let mut x_prev = x.to_vec();
     let mut g_prev = func_grad(&x)?.1;

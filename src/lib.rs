@@ -1,5 +1,6 @@
 extern crate rand;
 extern crate rayon;
+extern crate thiserror;
 
 pub mod l_bfgs;
 pub mod line_search;

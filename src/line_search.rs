@@ -1,11 +1,12 @@
 use rayon::prelude::*;
+use std::error::Error;
 
 pub fn line_search(
-    func_grad: &dyn Fn(&[f64]) -> Result<(f64, Vec<f64>), String>,
+    func_grad: &dyn Fn(&[f64]) -> Result<(f64, Vec<f64>), Box<dyn Error>>,
     x: &[f64],
     direction: &[f64],
     initial_step_size: f64,
-) -> Result<f64, String> {
+) -> Result<f64, Box<dyn Error>> {
     let mut step_size = initial_step_size;
     let armijo_param = 0.4;
     let curvature_param = 0.6;
