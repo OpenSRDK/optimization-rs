@@ -23,10 +23,10 @@ pub fn l_bfgs(
 
     loop {
         let mut g = func_grad(&x)?.1;
-        if g.iter()
-            .fold(0.0 / 0.0, |max: f64, gi| gi.abs().max(max.abs()))
-            < grad_error_goal
-        {
+        let g_max = g
+            .iter()
+            .fold(0.0 / 0.0, |max: f64, gi| gi.abs().max(max.abs()));
+        if g_max < grad_error_goal {
             break;
         }
 
@@ -99,6 +99,7 @@ pub fn l_bfgs(
         });
 
         let alpha = line_search(func_grad, &x, &z, initial_step_size)?;
+        println!("{}", alpha);
 
         g_prev = g;
 
