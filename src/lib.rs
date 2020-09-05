@@ -1,5 +1,5 @@
+extern crate opensrdk_linear_algebra;
 extern crate rand;
-extern crate rayon;
 extern crate thiserror;
 
 pub mod lbfgs;

@@ -1,5 +1,5 @@
+use opensrdk_linear_algebra::*;
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
-use rayon::prelude::*;
 use std::error::Error;
 
 /// # Stochastic Gradient Descent Adam
@@ -19,50 +19,41 @@ pub fn sgd_adam(
     epsilon: f64,
 ) -> Result<Vec<f64>, Box<dyn Error>> {
     let mut batch_index = (0..total).into_iter().collect::<Vec<_>>();
-    let mut w = x.to_vec();
-    let mut m = vec![0.0; w.len()];
-    let mut v = vec![0.0; w.len()];
+    let mut w = x.to_vec().col_mat();
+    let mut m = Matrix::new(w.rows(), 1);
+    let mut v = Matrix::new(w.rows(), 1);
     let mut t = 0;
     let mut rng: StdRng = SeedableRng::seed_from_u64(1);
 
     loop {
-        if grad(&(0..total).into_iter().collect::<Vec<_>>(), &w)?
+        let g_max = grad(&(0..total).into_iter().collect::<Vec<_>>(), w.elems_ref())?
             .iter()
-            .fold(0.0 / 0.0, |max: f64, wi| wi.abs().max(max.abs()))
-            < grad_error_goal
-        {
+            .fold(0.0 / 0.0, |max: f64, wi| wi.abs().max(max.abs()));
+        if g_max < grad_error_goal {
             break;
         }
 
         batch_index.shuffle(&mut rng);
 
         for minibatch in batch_index.chunks(batch) {
-            let minibatch_grad: Vec<f64> = grad(&minibatch, &w)?;
+            let minibatch_grad = grad(&minibatch, w.elems_ref())?.col_mat();
 
-            m.par_iter_mut()
-                .zip(minibatch_grad.par_iter())
-                .for_each(|(mi, gi)| *mi = beta1 * *mi + (1.0 - beta1) * gi);
-            v.par_iter_mut()
-                .zip(minibatch_grad.par_iter())
-                .for_each(|(vi, gi)| *vi = beta2 * *vi + (1.0 - beta1) * gi.powi(2));
+            m = beta1 * m + (1.0 - beta1) * minibatch_grad.clone();
+            v = beta2 * v + (1.0 - beta2) * minibatch_grad.clone().hadamard_prod(&minibatch_grad);
 
-            let m_hat = m
-                .par_iter()
-                .map(|me| me / (1.0 - beta1.powi(t + 1)))
-                .collect::<Vec<_>>();
-            let v_hat = v
-                .par_iter()
-                .map(|ve| ve / (1.0 - beta1.powi(t + 1)))
-                .collect::<Vec<_>>();
+            let m_hat = m.clone() * (1.0 / (1.0 - beta1.powi(t + 1)));
+            let v_hat = v.clone() * (1.0 / (1.0 - beta2.powi(t + 1)));
+            let v_hat_sqrt_e_inv = v_hat
+                .elems()
+                .iter()
+                .map(|vi| 1.0 / (vi.sqrt() + epsilon))
+                .collect::<Vec<_>>()
+                .col_mat();
 
-            let m_v = m_hat.into_par_iter().zip(v_hat.into_par_iter());
-
-            w.par_iter_mut()
-                .zip(m_v)
-                .for_each(|(wi, (mi, vi))| *wi = *wi - alpha * mi / (vi.sqrt() + epsilon));
+            w = w - alpha * m_hat.hadamard_prod(&v_hat_sqrt_e_inv);
         }
         t += 1;
     }
 
-    Ok(w)
+    Ok(w.elems())
 }

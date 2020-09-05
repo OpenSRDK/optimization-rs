@@ -1,4 +1,4 @@
-use rayon::prelude::*;
+use opensrdk_linear_algebra::*;
 use std::error::Error;
 
 #[derive(Clone, Debug)]
@@ -37,26 +37,20 @@ impl LineSearch {
         direction: &[f64],
     ) -> Result<f64, Box<dyn Error>> {
         let mut step_size = self.initial_step_size;
+        let x = x.to_vec().col_mat();
+        let d = direction.to_vec().col_mat();
 
         loop {
-            let moved_position = x
-                .par_iter()
-                .zip(direction.par_iter())
-                .map(|(xi, di)| xi + step_size * di)
-                .collect::<Vec<_>>();
+            let xad = x.clone() + step_size * d.clone();
 
-            let (fx, dfx_dx) = func_grad(x)?;
-            let (fxad, dfxad_dx) = func_grad(&moved_position)?;
+            let (fx, dfx_dx) = func_grad(x.elems_ref())?;
+            let (fxad, dfxad_dx) = func_grad(xad.elems_ref())?;
 
-            let grad_dot_direction = dfx_dx
-                .par_iter()
-                .zip(direction.par_iter())
-                .map(|(xi, di)| xi * di)
-                .sum::<f64>();
+            let dfx_dx_d = (dfx_dx.row_mat() * &d)[0][0];
 
             // Armijo condition
             let armijo_left = fxad;
-            let armijo_right = fx + self.armijo_param * step_size * grad_dot_direction;
+            let armijo_right = fx + self.armijo_param * step_size * dfx_dx_d;
 
             if armijo_left > armijo_right {
                 step_size *= 1.0 - self.step_update_rate;
@@ -65,12 +59,8 @@ impl LineSearch {
             }
 
             // Curvature condition
-            let curvature_left = self.curvature_param * grad_dot_direction;
-            let curvature_right = dfxad_dx
-                .par_iter()
-                .zip(direction.par_iter())
-                .map(|(gi, di)| gi * di)
-                .sum();
+            let curvature_left = self.curvature_param * dfx_dx_d;
+            let curvature_right = (dfxad_dx.row_mat() * &d)[0][0];
 
             if curvature_left > curvature_right {
                 step_size *= 1.0 + self.step_update_rate;

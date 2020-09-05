@@ -1,5 +1,5 @@
 use crate::line_search::*;
-use rayon::prelude::*;
+use opensrdk_linear_algebra::*;
 use std::collections::LinkedList;
 use std::error::Error;
 
@@ -26,37 +26,26 @@ impl LBFGS {
         func_grad: &dyn Fn(&[f64]) -> Result<(f64, Vec<f64>), Box<dyn Error>>,
         x: &[f64],
     ) -> Result<Vec<f64>, Box<dyn Error>> {
-        let mut x = x.to_vec();
-        let mut x_prev = vec![0.0; x.len()];
-        let mut g_prev = vec![0.0; x.len()];
+        let mut x = x.to_vec().col_mat();
+        let mut x_prev = Matrix::new(x.rows(), 1);
+        let mut g_prev = Matrix::new(x.rows(), 1);
         let mut k = 0;
 
-        let mut s_y_rho = LinkedList::<(Vec<f64>, Vec<f64>, f64)>::new();
+        let mut s_y_rho = LinkedList::<(Matrix, Matrix, f64)>::new();
 
         loop {
-            let mut g = func_grad(&x)?.1;
+            let mut g = func_grad(x.elems_ref())?.1.col_mat();
             let g_max = g
+                .elems_ref()
                 .iter()
                 .fold(0.0 / 0.0, |max: f64, gi| gi.abs().max(max.abs()));
             if g_max < self.grad_error_goal {
                 break;
             }
 
-            let sk = x
-                .par_iter()
-                .zip(x_prev.par_iter())
-                .map(|(xi, xi_prev)| xi - xi_prev)
-                .collect::<Vec<_>>();
-            let yk = g
-                .par_iter()
-                .zip(g_prev.par_iter())
-                .map(|(gi, gi_prev)| gi - gi_prev)
-                .collect::<Vec<_>>();
-            let rhok = 1.0
-                / yk.par_iter()
-                    .zip(sk.par_iter())
-                    .map(|(ykj, skj)| ykj * skj)
-                    .sum::<f64>();
+            let sk = x.clone() - x_prev;
+            let yk = g.clone() - g_prev;
+            let rhok = 1.0 / (yk.t() * &sk)[0][0];
 
             if rhok.is_infinite() {
                 break;
@@ -65,64 +54,44 @@ impl LBFGS {
             let mut alpha = vec![0.0; k as usize];
 
             for (i, (si, yi, rhoi)) in s_y_rho.iter().enumerate().rev() {
-                alpha[i] = rhoi
-                    * si.par_iter()
-                        .zip(g.par_iter())
-                        .map(|(sij, gj)| sij * gj)
-                        .sum::<f64>();
+                alpha[i] = rhoi * (si.t() * &g)[0][0];
 
                 let alphai = alpha[i];
-                g.par_iter_mut()
-                    .zip(yi.par_iter())
-                    .for_each(|(gj, yij)| *gj = *gj - alphai * yij);
+
+                g = g - alphai * yi.clone();
             }
 
-            let gamma = sk
-                .par_iter()
-                .zip(yk.par_iter())
-                .map(|(skj, ykj)| skj * ykj)
-                .sum::<f64>()
-                / yk.par_iter().map(|ykj| *ykj * *ykj).sum::<f64>();
+            let gamma = (sk.t() * &yk)[0][0] / (yk.t() * &yk)[0][0];
 
-            let mut z = g.par_iter().map(|gi| gamma * gi).collect::<Vec<_>>();
+            let mut z = gamma * g.clone();
 
             for (i, (si, yi, rhoi)) in s_y_rho.iter().enumerate() {
                 let alphai = alpha[i];
-                let betai = rhoi
-                    * yi.par_iter()
-                        .zip(z.par_iter())
-                        .map(|(yij, zj)| yij * zj)
-                        .sum::<f64>();
+                let betai = rhoi * (yi.t() * &z)[0][0];
 
-                z.par_iter_mut()
-                    .zip(si.par_iter())
-                    .for_each(|(zj, sij)| *zj = *zj + sij * (alphai - betai))
+                z = z + (alphai - betai) * si.clone();
             }
 
-            z.par_iter_mut().for_each(|zi| {
-                *zi = -*zi;
-            });
+            z = -1.0 * z;
+
             s_y_rho.push_back((sk, yk, rhok));
             if s_y_rho.len() > self.max_memory {
                 s_y_rho.pop_front();
             }
 
-            let step_size = self.line_search.search(func_grad, &x, &z)?;
+            let step_size = self
+                .line_search
+                .search(func_grad, x.elems_ref(), z.elems_ref())?;
 
             g_prev = g;
 
-            x.par_iter_mut()
-                .zip(x_prev.par_iter_mut())
-                .zip(z.par_iter())
-                .for_each(|((xi, xi_prev), zi)| {
-                    *xi_prev = *xi;
-                    *xi = *xi + step_size * zi;
-                });
+            x_prev = x.clone();
+            x = x + step_size * z;
 
             k += 1;
         }
 
-        Ok(x)
+        Ok(x.elems())
     }
 }
 
