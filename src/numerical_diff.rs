@@ -1,7 +1,7 @@
 use std::error::Error;
 
 pub fn numerical_diff(
-    func: &(dyn Fn(&[f64]) -> Result<f64, Box<dyn Error>> + Send + Sync),
+    func: &(dyn Fn(&[f64]) -> Result<f64, Box<dyn Error>>),
     x: &[f64],
 ) -> Result<Vec<f64>, Box<dyn Error>> {
     const H: f64 = 0.001 * 0.001;

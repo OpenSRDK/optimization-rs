@@ -3,31 +3,46 @@ use std::error::Error;
 
 #[derive(Clone, Debug)]
 pub struct LineSearch {
-    pub initial_step_size: f64,
-    pub step_update_rate: f64,
-    pub armijo_param: f64,
-    pub curvature_param: f64,
+    initial_step_size: f64,
+    step_update_rate: f64,
+    armijo_param: f64,
+    curvature_param: f64,
 }
 
 impl Default for LineSearch {
     fn default() -> Self {
-        Self::new(1.0, 0.1, 0.01, 0.99)
+        Self {
+            initial_step_size: 1.0,
+            step_update_rate: 0.1,
+            armijo_param: 0.1,
+            curvature_param: 0.9,
+        }
     }
 }
 
 impl LineSearch {
-    pub fn new(
-        initial_step_size: f64,
-        step_update_rate: f64,
-        armijo_param: f64,
-        curvature_param: f64,
-    ) -> Self {
-        Self {
-            initial_step_size,
-            step_update_rate,
-            armijo_param,
-            curvature_param,
-        }
+    pub fn with_initial_step_size(mut self, initial_step_size: f64) -> Self {
+        self.initial_step_size = initial_step_size;
+
+        self
+    }
+
+    pub fn with_step_update_rate(mut self, step_update_rate: f64) -> Self {
+        self.step_update_rate = step_update_rate;
+
+        self
+    }
+
+    pub fn with_armijo_param(mut self, armijo_param: f64) -> Self {
+        self.armijo_param = armijo_param;
+
+        self
+    }
+
+    pub fn with_curvature_param(mut self, curvature_param: f64) -> Self {
+        self.curvature_param = curvature_param;
+
+        self
     }
 
     pub fn search(
