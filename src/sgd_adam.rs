@@ -2,58 +2,125 @@ use opensrdk_linear_algebra::*;
 use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use std::error::Error;
 
+use crate::{vec::Vector as _, Status};
+
 /// # Stochastic Gradient Descent Adam
-/// `alpha = 0.001`
-/// `beta1 = 0.9`
-/// `beta2 = 0.999`
-/// `epsilon = 0.00000001`
-pub fn sgd_adam(
-    grad: &(dyn Fn(&[usize], &[f64]) -> Result<Vec<f64>, Box<dyn Error>> + Send + Sync),
-    x: &[f64],
-    grad_error_goal: f64,
-    batch: usize,
-    total: usize,
+pub struct SgdAdam {
+    epsilon: f64,
+    max_iter: usize,
     alpha: f64,
     beta1: f64,
     beta2: f64,
-    epsilon: f64,
-) -> Result<Vec<f64>, Box<dyn Error>> {
-    let mut batch_index = (0..total).into_iter().collect::<Vec<_>>();
-    let mut w = x.to_vec().col_mat();
-    let mut m = Matrix::new(w.rows(), 1);
-    let mut v = Matrix::new(w.rows(), 1);
-    let mut t = 0;
-    let mut rng: StdRng = SeedableRng::seed_from_u64(1);
+    e: f64,
+}
 
-    loop {
-        let g_max = grad(&(0..total).into_iter().collect::<Vec<_>>(), w.elems_ref())?
-            .iter()
-            .fold(0.0 / 0.0, |max: f64, wi| wi.abs().max(max.abs()));
-        if g_max < grad_error_goal {
-            break;
+impl Default for SgdAdam {
+    fn default() -> Self {
+        Self {
+            epsilon: 1e-6,
+            max_iter: 0,
+            alpha: 0.001,
+            beta1: 0.9,
+            beta2: 0.999,
+            e: 0.00000001,
         }
+    }
+}
 
-        batch_index.shuffle(&mut rng);
+impl SgdAdam {
+    pub fn with_epsilon(mut self, epsilon: f64) -> Self {
+        assert!(epsilon.is_sign_positive(), "epsilon must be positive");
 
-        for minibatch in batch_index.chunks(batch) {
-            let minibatch_grad = grad(&minibatch, w.elems_ref())?.col_mat();
+        self.epsilon = epsilon;
 
-            m = beta1 * m + (1.0 - beta1) * minibatch_grad.clone();
-            v = beta2 * v + (1.0 - beta2) * minibatch_grad.clone().hadamard_prod(&minibatch_grad);
-
-            let m_hat = m.clone() * (1.0 / (1.0 - beta1.powi(t + 1)));
-            let v_hat = v.clone() * (1.0 / (1.0 - beta2.powi(t + 1)));
-            let v_hat_sqrt_e_inv = v_hat
-                .elems()
-                .iter()
-                .map(|vi| 1.0 / (vi.sqrt() + epsilon))
-                .collect::<Vec<_>>()
-                .col_mat();
-
-            w = w - alpha * m_hat.hadamard_prod(&v_hat_sqrt_e_inv);
-        }
-        t += 1;
+        self
     }
 
-    Ok(w.elems())
+    pub fn with_max_iter(mut self, max_iter: usize) -> Self {
+        self.max_iter = max_iter;
+
+        self
+    }
+
+    pub fn with_alpha(mut self, alpha: f64) -> Self {
+        assert!(alpha.is_sign_positive(), "delta must be positive");
+
+        self.alpha = alpha;
+
+        self
+    }
+
+    pub fn with_beta1(mut self, beta1: f64) -> Self {
+        assert!(beta1.is_sign_positive(), "beta1 must be positive");
+
+        self.beta2 = beta1;
+
+        self
+    }
+
+    pub fn with_beta2(mut self, beta2: f64) -> Self {
+        assert!(beta2.is_sign_positive(), "beta2 must be positive");
+
+        self.beta2 = beta2;
+
+        self
+    }
+
+    pub fn with_e(mut self, e: f64) -> Self {
+        assert!(e.is_sign_positive(), "e must be positive");
+
+        self.e = e;
+
+        self
+    }
+
+    pub fn minimize(
+        &self,
+        x: &mut [f64],
+        grad: &(dyn Fn(&[usize], &[f64]) -> Result<Vec<f64>, Box<dyn Error>> + Send + Sync),
+        batch: usize,
+        total: usize,
+    ) -> Result<Status, Box<dyn Error>> {
+        let mut batch_index = (0..total).into_iter().collect::<Vec<_>>();
+        let mut w = x.to_vec().col_mat();
+        let mut m = Matrix::new(w.rows(), 1);
+        let mut v = Matrix::new(w.rows(), 1);
+        let mut rng: StdRng = SeedableRng::seed_from_u64(1);
+
+        for k in 0.. {
+            if self.max_iter != 0 && self.max_iter <= k {
+                return Ok(Status::MaxIter);
+            }
+
+            let gfx = grad(&(0..total).into_iter().collect::<Vec<_>>(), w.elems_ref())?;
+            if gfx.l2_norm() < self.epsilon + x.l2_norm() {
+                return Ok(Status::Epsilon);
+            }
+
+            batch_index.shuffle(&mut rng);
+
+            for minibatch in batch_index.chunks(batch) {
+                let minibatch_grad = grad(&minibatch, w.elems_ref())?.col_mat();
+
+                m = self.beta1 * m + (1.0 - self.beta1) * minibatch_grad.clone();
+                v = self.beta2 * v
+                    + (1.0 - self.beta2) * minibatch_grad.clone().hadamard_prod(&minibatch_grad);
+
+                let m_hat = m.clone() * (1.0 / (1.0 - self.beta1.powi(k as i32 + 1)));
+                let v_hat = v.clone() * (1.0 / (1.0 - self.beta2.powi(k as i32 + 1)));
+                let v_hat_sqrt_e_inv = v_hat
+                    .elems()
+                    .iter()
+                    .map(|vi| 1.0 / (vi.sqrt() + self.e))
+                    .collect::<Vec<_>>()
+                    .col_mat();
+
+                w = w - self.alpha * m_hat.hadamard_prod(&v_hat_sqrt_e_inv);
+            }
+
+            x.clone_from_slice(w.elems_ref());
+        }
+
+        Ok(Status::Success)
+    }
 }

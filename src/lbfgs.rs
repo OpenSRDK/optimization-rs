@@ -1,5 +1,5 @@
-use crate::line_search::*;
 use crate::vec::Vector as _;
+use crate::{line_search::*, Status};
 use opensrdk_linear_algebra::*;
 use std::collections::LinkedList;
 use std::error::Error;
@@ -12,16 +12,6 @@ pub struct Lbfgs {
     epsilon: f64,
     max_iter: usize,
     line_search: LineSearch,
-    callback: Option<Box<dyn Fn(&LbfgsCallbackParams) -> ()>>,
-}
-
-pub struct LbfgsCallbackParams<'a> {
-    pub x: &'a [f64],
-    pub fx: f64,
-    pub gfx: &'a [f64],
-    pub dx: &'a [f64],
-    pub dfx: f64,
-    pub iter: usize,
 }
 
 impl Default for Lbfgs {
@@ -32,7 +22,6 @@ impl Default for Lbfgs {
             epsilon: 1e-6,
             max_iter: 0,
             line_search: LineSearch::default(),
-            callback: None,
         }
     }
 }
@@ -72,17 +61,11 @@ impl Lbfgs {
         self
     }
 
-    pub fn with_callback(mut self, callback: Box<dyn Fn(&LbfgsCallbackParams) -> ()>) -> Self {
-        self.callback = Some(callback);
-
-        self
-    }
-
     pub fn minimize(
         &self,
         x: &mut [f64],
         fx_gfx: &dyn Fn(&[f64]) -> Result<(f64, Vec<f64>), Box<dyn Error>>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<Status, Box<dyn Error>> {
         let mut x_prev = Matrix::new(x.len(), 1);
         let fx_prev = 0.0;
         let mut gfx_prev = Matrix::new(x.len(), 1);
@@ -91,18 +74,18 @@ impl Lbfgs {
 
         for k in 1.. {
             if self.max_iter != 0 && self.max_iter <= k {
-                break;
+                return Ok(Status::MaxIter);
             }
 
             let (fx, gfx) = fx_gfx(x)?;
             let dfx = fx - fx_prev;
 
             if dfx.abs() / fx < self.delta {
-                break;
+                return Ok(Status::Delta);
             }
 
-            if gfx.l2_norm() < self.epsilon + 1f64.max(x.l2_norm()) {
-                break;
+            if gfx.l2_norm() < self.epsilon + x.l2_norm() {
+                return Ok(Status::Epsilon);
             }
 
             let sk = x.to_vec().col_mat() - x_prev;
@@ -143,18 +126,7 @@ impl Lbfgs {
             let dx = step_size * z;
 
             if !dx.elems_ref().l2_norm().is_finite() {
-                break;
-            }
-
-            if let Some(callback) = self.callback.as_ref() {
-                callback(&LbfgsCallbackParams {
-                    x,
-                    fx,
-                    gfx: &gfx,
-                    dx: dx.elems_ref(),
-                    dfx,
-                    iter: k,
-                });
+                return Ok(Status::NaN);
             }
 
             gfx_prev = h;
@@ -162,7 +134,7 @@ impl Lbfgs {
             x.clone_from_slice((&x_prev + dx).elems_ref());
         }
 
-        Ok(())
+        Ok(Status::Success)
     }
 }
 
@@ -175,6 +147,7 @@ mod tests {
         result().unwrap();
     }
 
+    #[test]
     fn result() -> Result<(), Box<dyn Error>> {
         let mut x = vec![1.2, 3.456789];
 
@@ -184,23 +157,16 @@ mod tests {
 
             Ok((fx, gx))
         };
-        Lbfgs::default()
-            .with_callback(Box::new(|params: &LbfgsCallbackParams| {
-                println!("x: {:#?}", params.x);
-                println!("fx: {:#?}", params.fx);
-                println!("gfx: {:#?}", params.gfx);
-                println!("dx: {:#?}", params.dx);
-                println!("dfx: {:#?}", params.dfx);
-            }))
-            .minimize(&mut x, &fx_gfx)?;
+        Lbfgs::default().minimize(&mut x, &fx_gfx)?;
 
         println!("x: {:#?}", x);
 
         Ok(())
     }
 
-    fn result2() -> Result<(), Box<dyn Error>> {
-        let mut x = vec![-1000.0, 10.0];
+    #[test]
+    fn result_() -> Result<(), Box<dyn Error>> {
+        let mut x = vec![0.000001, -0.00001];
 
         let fx = |x: &[f64]| {
             let fx = 20.0
@@ -217,21 +183,14 @@ mod tests {
             Ok(fx)
         };
         let fx_gfx = |x: &[f64]| {
-            let gx = numerical_diff(&fx, x)?;
+            let gfx = numerical_diff(&fx, x, 1e-12)?;
+            println!("{:#?}", gfx);
 
-            Ok((fx(x)?, gx))
+            Ok((fx(x)?, gfx))
         };
-        Lbfgs::default()
-            .with_callback(Box::new(|params: &LbfgsCallbackParams| {
-                println!("{:#?}", params.x);
-                println!("{:#?}", params.fx);
-                println!("{:#?}", params.gfx);
-                println!("{:#?}", params.dx);
-                println!("{:#?}", params.dfx);
-            }))
-            .minimize(&mut x, &fx_gfx)?;
+        Lbfgs::default().minimize(&mut x, &fx_gfx)?;
 
-        println!("{:#?}", x);
+        println!("x: {:#?}", x);
 
         Ok(())
     }
