@@ -84,7 +84,7 @@ impl Lbfgs {
                 return Ok(Status::Delta);
             }
 
-            if gfx.l2_norm() < self.epsilon + x.l2_norm() {
+            if gfx.l2_norm() < self.epsilon {
                 return Ok(Status::Epsilon);
             }
 
@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn result_() -> Result<(), Box<dyn Error>> {
-        let mut x = vec![0.000001, -0.00001];
+        let mut x = vec![30.0, -20.0];
 
         let fx = |x: &[f64]| {
             let fx = 20.0
@@ -183,7 +183,7 @@ mod tests {
             Ok(fx)
         };
         let fx_gfx = |x: &[f64]| {
-            let gfx = numerical_diff(&fx, x, 1e-12)?;
+            let gfx = numerical_diff(&fx, x, 1e-3)?;
             println!("{:#?}", gfx);
 
             Ok((fx(x)?, gfx))

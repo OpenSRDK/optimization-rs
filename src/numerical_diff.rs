@@ -10,6 +10,7 @@ pub fn numerical_diff(
         .map(|i| -> Result<f64, Box<dyn Error>> {
             let mut add = x.to_vec();
             let mut sub = x.to_vec();
+            let h = if x[i] == 0.0 { h } else { x[i].abs() * h };
             add[i] += h;
             sub[i] -= h;
 
