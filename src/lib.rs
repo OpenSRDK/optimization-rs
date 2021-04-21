@@ -19,9 +19,9 @@ pub use crate::numerical_diff::*;
 pub use crate::sgd_adam::*;
 
 pub enum Status {
-    Success,
-    Delta,
-    Epsilon,
-    MaxIter,
-    NaN,
+  Success,
+  Delta,
+  Epsilon,
+  MaxIter,
+  NaN,
 }
