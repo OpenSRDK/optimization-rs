@@ -1,6 +1,6 @@
 [package]
 name = "opensrdk-optimization"
-version = "0.1.3"
+version = "0.1.4"
 authors = ["Kimura Yu <33382781+KimuraYu45z@users.noreply.github.com>"]
 edition = "2018"
 description = "Standard mathematical optimization library for OpenSRDK toolchain."
@@ -12,11 +12,11 @@ categories = ["mathematics", "science"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rand = "0.8.3"
-rayon = "1.5.0"
-thiserror = "1.0.24"
-opensrdk-linear-algebra = "0.6.4"
+rand = "0.8.4"
+rayon = "1.5.1"
+thiserror = "1.0.28"
+opensrdk-linear-algebra = "0.7.3"
 
 [dev-dependencies]
-blas-src = { version = "0.7", features = ["intel-mkl"] } 
-lapack-src = { version = "0.6", features = ["intel-mkl"] }
+blas-src = { version = "0.8", features = ["intel-mkl"] } 
+lapack-src = { version = "0.8", features = ["intel-mkl"] }

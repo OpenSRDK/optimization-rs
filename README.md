@@ -4,9 +4,9 @@
 
 ```toml
 [dependencies]
-opensrdk-optimization = "0.1.0"
-blas-src = { version = "0.6", features = ["openblas"] }
-lapack-src = { version = "0.6", features = ["openblas"] }
+opensrdk-optimization = "0.1.4"
+blas-src = { version = "0.8", features = ["openblas"] }
+lapack-src = { version = "0.8", features = ["openblas"] }
 ```
 
 ```rs
